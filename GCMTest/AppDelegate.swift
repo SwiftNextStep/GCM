@@ -7,39 +7,96 @@
 //
 
 import UIKit
+import Google
+import Google.CloudMessaging
+
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, GGLInstanceIDDelegate, GCMReceiverDelegate {
 
     var window: UIWindow?
-
+    var senderID: String?
+    
+    let apnsResgistrationKey = "onApnsResgistrationKey"
 
     func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
-        // Override point for customization after application launch.
+        
+        //Config Google
+        var error:NSError?
+        GGLContext.sharedInstance().configureWithError(&error)
+        assert(error == nil, "Error configuring Google service, with message \(error?.localizedDescription)")
+        senderID = GGLContext.sharedInstance().configuration.gcmSenderID
+        
+        //Register for remote notification
+        let settings = UIUserNotificationSettings(forTypes: [.Alert, .Badge, .Sound], categories: nil)
+        application.registerUserNotificationSettings(settings)
+        application.registerForRemoteNotifications()
+        
+        let config = GCMConfig.defaultConfig()
+        config.receiverDelegate = self
+        config.logLevel = GCMLogLevel.Debug
+        GCMService.sharedInstance().startWithConfig(config)        
         return true
     }
+    
+    func onTokenRefresh() {
+        print("Token needs refresh")
+    }
+    
+    func application(application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: NSData) {
+        print("Register for remote notification with token \(deviceToken)")
+        NSNotificationCenter.defaultCenter().postNotificationName(apnsResgistrationKey, object: nil, userInfo: ["deviceToken":deviceToken])
+    }
+    
+    func application(application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: NSError) {
+        print("Fail to register for remote notification with message \(error.localizedDescription)")
+    }
 
+    func application(application: UIApplication, didReceiveRemoteNotification userInfo: [NSObject : AnyObject]) {
+        print("Notification Received, didReceiveRemoteNotification")
+        GCMService.sharedInstance().appDidReceiveMessage(userInfo);
+    }
+    
+    func application(application: UIApplication, didReceiveRemoteNotification userInfo: [NSObject : AnyObject], fetchCompletionHandler completionHandler: (UIBackgroundFetchResult) -> Void) {
+        print("Notification Received, handler")
+        GCMService.sharedInstance().appDidReceiveMessage(userInfo);
+
+    }
     func applicationWillResignActive(application: UIApplication) {
-        // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-        // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
     }
 
     func applicationDidEnterBackground(application: UIApplication) {
-        // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-        // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
     }
 
     func applicationWillEnterForeground(application: UIApplication) {
-        // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
     }
 
-    func applicationDidBecomeActive(application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    func applicationDidBecomeActive(application: UIApplication){
+        GCMService.sharedInstance().connectWithHandler { (error) -> Void in
+            if error == nil{
+                print("Connected to GCM")
+            } else{
+                print("Error connecting to GCM \(error.localizedDescription)")
+            }
+        }
     }
 
     func applicationWillTerminate(application: UIApplication) {
-        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+     }
+    
+    func willSendDataMessageWithID(messageID: String!, error: NSError!) {
+        if error != nil{
+            print("Error \(error.localizedDescription)")
+        } else{
+            print("Will send messageID is \(messageID)")
+        }
     }
+    
+    func didSendDataMessageWithID(messageID: String!) {
+        print("Sent Message \(messageID)")
+    }
+    
+
 
 
 }
